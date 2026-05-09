@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: dmnex-modeller-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dmnex-modeller-db
+    username: postgres
+    password: postgres

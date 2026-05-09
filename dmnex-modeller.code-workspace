@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "dmnex-modeller"
+		},
+		{
+			"path": "dmnex-modeller-service"
 		}
 	],
 	"settings": {
@@ -17,6 +20,7 @@
 				}
 			},
 			"inputs": []
-		}
+		},
+		"java.compile.nullAnalysis.mode": "disabled"
 	}
 }
