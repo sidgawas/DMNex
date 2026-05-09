@@ -5,3 +5,9 @@ spring:
     url: jdbc:postgresql://localhost:5432/dmnex-modeller-db
     username: postgres
     password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-main.yaml
