@@ -1,0 +1,66 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-workspaces-table
+      author: copilot
+      changes:
+        - createTable:
+            tableName: workspaces
+            columns:
+              - column:
+                  name: id
+                  type: varchar(36)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: slug
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+              - column:
+                  name: deleted_at
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: deleted_by
+                  type: varchar(255)
+        - createIndex:
+            indexName: idx_workspaces_is_deleted
+            tableName: workspaces
+            columns:
+              - column:
+                  name: is_deleted
+        - createIndex:
+            indexName: idx_workspaces_updated_at
+            tableName: workspaces
+            columns:
+              - column:
+                  name: updated_at
+        - addUniqueConstraint:
+            tableName: workspaces
+            columnNames: slug, is_deleted
+            constraintName: uk_workspaces_slug_is_deleted

@@ -11,3 +11,12 @@ spring:
     show-sql: true
   liquibase:
     change-log: classpath:db/changelog/db.changelog-main.yaml
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    operations-sorter: alpha
+    tags-sorter: alpha

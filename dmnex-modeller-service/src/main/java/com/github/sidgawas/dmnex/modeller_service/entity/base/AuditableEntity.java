@@ -27,11 +27,11 @@ public abstract class AuditableEntity {
     private LocalDateTime deletedAt;
 
     @Column(name = "created_by")
-    private String createdBy;
+    private String createdBy = "SYSTEM";
 
     @Column(name = "updated_by")
-    private String updatedBy;
+    private String updatedBy = "SYSTEM";
 
     @Column(name = "deleted_by")
-    private String deletedBy;
+    private String deletedBy = "SYSTEM";
 }

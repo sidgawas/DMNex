@@ -24,7 +24,7 @@ Every REST controller must extend `BaseController` and inject MapStruct mapper i
 **Example - DO:**
 ```java
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 public class UserController extends BaseController {
     private final UserService userService;
     private final UserMapper userMapper;
@@ -47,7 +47,7 @@ public class UserController extends BaseController {
 **Example - DON'T:**
 ```java
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 public class UserController {
     // ❌ Does not extend BaseController (missing error handling)
     private final UserService userService;
@@ -74,7 +74,7 @@ API responses must use dedicated Request/Response models, never raw JPA entities
 **Example - DO:**
 ```java
 @GetMapping("/{id}")
-public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+public ResponseEntity<UserResponse> getUserById(@PathVariable(name = "id") Long id) {
     User entity = userService.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     return ResponseEntity.ok(userMapper.toResponse(entity));
@@ -111,7 +111,7 @@ public ResponseEntity<UserResponse> create(@RequestBody @Valid UserCreateRequest
 
 @PutMapping("/{id}")
 public ResponseEntity<UserResponse> update(
-    @PathVariable Long id,
+    @PathVariable(name = "id") Long id,
     @RequestBody @Valid UserUpdateRequest request) {
     User entity = userService.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -172,6 +172,10 @@ public class UserController {
 ### 5. Consistent Response Wrapping
 Use appropriate HTTP status codes and ResponseEntity for type-safe responses.
 
+All REST APIs must be versioned by path immediately after `/api`, for example `/api/v1/users`.
+
+List endpoints that can grow beyond trivial size must return paginated responses rather than raw lists. Prefer a shared pagination response model that includes items, page, size, total item count, and total page count.
+
 **Pattern:**
 - `200 OK` (default) — For successful GET, PUT operations
 - `201 CREATED` — For successful POST operations that create resources
@@ -191,13 +195,21 @@ public ResponseEntity<UserResponse> create(@RequestBody @Valid UserCreateRequest
 }
 
 @GetMapping
-public ResponseEntity<List<UserResponse>> getAll() {
-    List<User> entities = userService.findAll();
-    return ResponseEntity.ok(userMapper.toResponseList(entities));
+public ResponseEntity<PaginationResponse<UserResponse>> getAll(
+    @RequestParam(defaultValue = "0") int page,
+    @RequestParam(defaultValue = "20") int size) {
+    Page<User> entities = userService.findAll(page, size);
+    return ResponseEntity.ok(PaginationResponse.<UserResponse>builder()
+        .items(userMapper.toResponseList(entities.getContent()))
+        .page(entities.getNumber())
+        .size(entities.getSize())
+        .totalItems(entities.getTotalElements())
+        .totalPages(entities.getTotalPages())
+        .build());
 }
 
 @DeleteMapping("/{id}")
-public ResponseEntity<Void> delete(@PathVariable Long id) {
+public ResponseEntity<Void> delete(@PathVariable(name = "id") Long id) {
     userService.deleteById(id);
     return ResponseEntity.noContent().build();
 }
@@ -205,6 +217,88 @@ public ResponseEntity<Void> delete(@PathVariable Long id) {
 
 ### 6. Always Use `@Valid` for Request Validation
 Enable Bean Validation on request models using `@Valid` annotation. Validation errors are automatically handled by BaseController.
+
+### 7. Use Explicit `name` in `@RequestParam`
+Always set the `name` attribute explicitly on `@RequestParam`.
+
+Why:
+- OpenAPI/Swagger generation may not reliably infer parameter names from compiled bytecode in all environments
+- Explicit names make the HTTP contract unambiguous
+- This avoids documentation drift when compiler or framework parameter-name discovery changes
+
+**Example - DO:**
+```java
+@GetMapping
+public ResponseEntity<PaginationResponse<UserResponse>> getAll(
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @RequestParam(name = "size", defaultValue = "20") int size,
+        @RequestParam(name = "query", required = false) String query) {
+    // ...
+}
+```
+
+**Example - DON'T:**
+```java
+@GetMapping
+public ResponseEntity<PaginationResponse<UserResponse>> getAll(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size,
+        @RequestParam(required = false) String query) {
+    // ...
+}
+```
+
+### 8. Use Explicit `name` in Path Parameters
+Always set path parameter names explicitly:
+- for Spring MVC, use `@PathVariable(name = "...")`
+- if `@PathParam` is used, set the value explicitly (for example `@PathParam("id")`)
+
+Why:
+- OpenAPI/Swagger parameter-name discovery can be inconsistent across build/runtime setups
+- Explicit names remove ambiguity in routing and documentation
+
+**Example - DO:**
+```java
+@GetMapping("/{id}")
+public ResponseEntity<UserResponse> getById(@PathVariable(name = "id") Long id) {
+    // ...
+}
+```
+
+**Example - ALSO VALID WHEN USING `@PathParam`:**
+```java
+@GET
+@Path("/{id}")
+public Response getById(@PathParam("id") String id) {
+    // ...
+}
+```
+
+### 9. Version API Paths and Paginate List Endpoints
+Controller-level `@RequestMapping` paths must follow the pattern `/api/v{n}/...`.
+
+For list endpoints:
+- use request parameters such as `page`, `size`, and optional filters/search terms when appropriate
+- declare `@RequestParam(name = "...")` explicitly for every query parameter
+- declare path parameter names explicitly (for example `@PathVariable(name = "id")`)
+- return a paginated response object instead of a bare array
+- keep sorting deterministic for stable paging
+
+**Example - DO:**
+```java
+@RestController
+@RequestMapping("/api/v1/workspaces")
+public class WorkspaceController extends BaseController {
+
+    @GetMapping
+    public ResponseEntity<PaginationResponse<WorkspaceResponse>> listWorkspaces(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "query", required = false) String query) {
+        // return paginated results
+    }
+}
+```
 
 **Benefits:**
 - Centralized validation logic via BaseController
@@ -281,7 +375,7 @@ public ResponseEntity<ProductResponse> create(@RequestBody @Valid ProductCreateR
 ### Pattern 2: Get Single Resource
 ```java
 @GetMapping("/{id}")
-public ResponseEntity<ProductResponse> getById(@PathVariable Long id) {
+public ResponseEntity<ProductResponse> getById(@PathVariable(name = "id") Long id) {
     Product entity = productService.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
     return ResponseEntity.ok(productMapper.toResponse(entity));
@@ -304,7 +398,7 @@ public ResponseEntity<Page<ProductResponse>> getAll(
 ```java
 @PutMapping("/{id}")
 public ResponseEntity<ProductResponse> update(
-    @PathVariable Long id,
+    @PathVariable(name = "id") Long id,
     @RequestBody @Valid ProductUpdateRequest request) {
     Product entity = productService.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
@@ -317,7 +411,7 @@ public ResponseEntity<ProductResponse> update(
 ### Pattern 5: Delete Resource
 ```java
 @DeleteMapping("/{id}")
-public ResponseEntity<Void> delete(@PathVariable Long id) {
+public ResponseEntity<Void> delete(@PathVariable(name = "id") Long id) {
     productService.deleteById(id);
     return ResponseEntity.noContent().build();
 }
@@ -352,7 +446,7 @@ public class UserController extends BaseController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> getById(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> getById(@PathVariable(name = "id") Long id) {
         User entity = userService.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return ResponseEntity.ok(userMapper.toResponse(entity));
@@ -366,7 +460,7 @@ public class UserController extends BaseController {
 
     @PutMapping("/{id}")
     public ResponseEntity<UserResponse> update(
-        @PathVariable Long id,
+        @PathVariable(name = "id") Long id,
         @RequestBody @Valid UserUpdateRequest request) {
         User entity = userService.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -376,7 +470,7 @@ public class UserController extends BaseController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable(name = "id") Long id) {
         userService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
@@ -414,6 +508,11 @@ public class UserController extends BaseController {
    - ✅ Throw exceptions and let BaseController handle them
    - ✅ ResourceNotFoundException → 404 NOT_FOUND
    - ✅ MethodArgumentNotValidException → 400 BAD_REQUEST with field errors
+
+8. **Implicit path parameter names**
+    - ❌ `@PathVariable Long id`
+    - ✅ `@PathVariable(name = "id") Long id`
+    - ✅ `@PathParam("id") String id` (when `@PathParam` is used)
 
 ## Centralized Exception Handling in BaseController
 
