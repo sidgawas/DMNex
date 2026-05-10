@@ -16,7 +16,7 @@ public interface WorkspaceRepository extends JpaRepository<WorkspaceEntity, Stri
 
     Page<WorkspaceEntity> findByIsDeletedFalseAndNameContainingIgnoreCase(String name, Pageable pageable);
 
-    boolean existsBySlugAndIsDeletedFalse(String slug);
+    boolean existsBySlug(String slug);
 
-    boolean existsBySlugAndIsDeletedFalseAndIdNot(String slug, String id);
+    boolean existsBySlugAndIdNot(String slug, String id);
 }

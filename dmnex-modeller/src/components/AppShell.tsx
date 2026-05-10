@@ -32,6 +32,23 @@ type NavigationItem = {
   isSelected: (pathname: string) => boolean
 }
 
+const getWorkspaceInitials = (name: string) => {
+  const tokens = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (tokens.length === 0) {
+    return 'WS'
+  }
+
+  if (tokens.length === 1) {
+    return tokens[0].slice(0, 2).toUpperCase()
+  }
+
+  return `${tokens[0][0]}${tokens[1][0]}`.toUpperCase()
+}
+
 function AppShell() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const location = useLocation()
@@ -40,6 +57,7 @@ function AppShell() {
 
   const drawerWidth = isCollapsed ? collapsedDrawerWidth : expandedDrawerWidth
   const activeWorkspace = workspaceId ? getWorkspace(workspaceId) : undefined
+  const activeWorkspaceInitials = activeWorkspace ? getWorkspaceInitials(activeWorkspace.name) : 'WS'
 
   const navigationItems = useMemo<NavigationItem[]>(() => {
     const baseItems: NavigationItem[] = [
@@ -159,7 +177,12 @@ function AppShell() {
             )}
             {isCollapsed ? (
               <Tooltip title={activeWorkspace.name} placement="right">
-                <Chip size="small" color="primary" label="WS" sx={{ borderRadius: 1.5 }} />
+                <Chip
+                  size="small"
+                  color="primary"
+                  label={activeWorkspaceInitials}
+                  sx={{ borderRadius: 1.5 }}
+                />
               </Tooltip>
             ) : (
               <Chip

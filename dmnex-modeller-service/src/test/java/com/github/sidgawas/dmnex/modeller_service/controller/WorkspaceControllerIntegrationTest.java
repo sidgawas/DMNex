@@ -52,7 +52,7 @@ class WorkspaceControllerIntegrationTest {
 
     @Test
     void createWorkspaceShouldReturnCreatedResponse() throws Exception {
-        when(workspaceRepository.existsBySlugAndIsDeletedFalse(anyString())).thenReturn(false);
+        when(workspaceRepository.existsBySlug(anyString())).thenReturn(false);
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(post("/api/v1/workspaces")
@@ -151,7 +151,7 @@ class WorkspaceControllerIntegrationTest {
         existing.setUpdatedAt(LocalDateTime.now().minusHours(1));
 
         when(workspaceRepository.findByIdAndIsDeletedFalse("workspace-id")).thenReturn(Optional.of(existing));
-        when(workspaceRepository.existsBySlugAndIsDeletedFalseAndIdNot("new-name", "workspace-id")).thenReturn(false);
+        when(workspaceRepository.existsBySlugAndIdNot("new-name", "workspace-id")).thenReturn(false);
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(put("/api/v1/workspaces/workspace-id")

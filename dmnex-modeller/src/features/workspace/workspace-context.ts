@@ -20,10 +20,22 @@ export type DmnDefinition = {
 
 export type WorkspaceStoreValue = {
   workspaces: Workspace[]
+  workspacesPage: number
+  workspacesPageSize: number
+  workspacesTotalPages: number
+  workspacesTotalItems: number
+  workspacesHasNext: boolean
+  workspacesHasPrevious: boolean
+  isWorkspacesLoading: boolean
+  workspacesError: string | null
+  refreshWorkspaces: (targetPage?: number, targetSize?: number) => Promise<void>
+  setWorkspacesPageSize: (pageSize: number) => Promise<void>
+  updateWorkspaceName: (workspaceId: string, name: string) => Promise<Workspace>
+  deleteWorkspace: (workspaceId: string) => Promise<void>
   listDmns: (workspaceId: string) => DmnDefinition[]
   getWorkspace: (workspaceId: string) => Workspace | undefined
   getDmn: (workspaceId: string, dmnId: string) => DmnDefinition | undefined
-  createWorkspace: (name: string) => Workspace
+  createWorkspace: (name: string) => Promise<Workspace>
   createDmn: (workspaceId: string, title: string) => DmnDefinition
   renameDmn: (workspaceId: string, dmnId: string, title: string) => DmnDefinition | undefined
 }

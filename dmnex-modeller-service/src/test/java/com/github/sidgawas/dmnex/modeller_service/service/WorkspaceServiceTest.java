@@ -50,7 +50,7 @@ class WorkspaceServiceTest {
     @Test
     void createShouldNormalizeNameAndGenerateSlug() {
         when(entityIdGenerator.nextId()).thenReturn("01JVZQ0YQYJ3A");
-        when(workspaceRepository.existsBySlugAndIsDeletedFalse("risk-management")).thenReturn(false);
+        when(workspaceRepository.existsBySlug("risk-management")).thenReturn(false);
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkspaceCreateRequest request = WorkspaceCreateRequest.builder().name("  Risk Management  ").build();
@@ -68,8 +68,22 @@ class WorkspaceServiceTest {
     @Test
     void createShouldAddSlugSuffixWhenBaseSlugExists() {
         when(entityIdGenerator.nextId()).thenReturn("01JVZQ0YQYJ3B");
-        when(workspaceRepository.existsBySlugAndIsDeletedFalse("risk-management")).thenReturn(true);
-        when(workspaceRepository.existsBySlugAndIsDeletedFalse("risk-management-2")).thenReturn(false);
+        when(workspaceRepository.existsBySlug("risk-management")).thenReturn(true);
+        when(workspaceRepository.existsBySlug("risk-management-2")).thenReturn(false);
+        when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkspaceCreateRequest request = WorkspaceCreateRequest.builder().name("Risk Management").build();
+
+        WorkspaceEntity created = workspaceService.create(request);
+
+        assertThat(created.getSlug()).isEqualTo("risk-management-2");
+    }
+
+    @Test
+    void createShouldAddSlugSuffixWhenMatchingSlugExistsOnlyOnDeletedWorkspace() {
+        when(entityIdGenerator.nextId()).thenReturn("01JVZQ0YQYJ3C");
+        when(workspaceRepository.existsBySlug("risk-management")).thenReturn(true);
+        when(workspaceRepository.existsBySlug("risk-management-2")).thenReturn(false);
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkspaceCreateRequest request = WorkspaceCreateRequest.builder().name("Risk Management").build();
@@ -138,7 +152,7 @@ class WorkspaceServiceTest {
         entity.setIsDeleted(false);
 
         when(workspaceRepository.findByIdAndIsDeletedFalse("workspace-id")).thenReturn(Optional.of(entity));
-        when(workspaceRepository.existsBySlugAndIsDeletedFalseAndIdNot("new-name", "workspace-id")).thenReturn(false);
+        when(workspaceRepository.existsBySlugAndIdNot("new-name", "workspace-id")).thenReturn(false);
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkspaceUpdateRequest request = WorkspaceUpdateRequest.builder().name("  New Name  ").build();

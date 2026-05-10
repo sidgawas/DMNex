@@ -20,3 +20,9 @@ springdoc:
     disable-swagger-default-url: true
     operations-sorter: alpha
     tags-sorter: alpha
+
+app:
+  cors:
+    allowed-origin-patterns: "*"
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"

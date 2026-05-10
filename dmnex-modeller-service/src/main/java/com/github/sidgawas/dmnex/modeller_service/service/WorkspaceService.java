@@ -148,10 +148,10 @@ public class WorkspaceService {
 
     private boolean slugExists(String slug, String currentWorkspaceId) {
         if (currentWorkspaceId == null) {
-            return workspaceRepository.existsBySlugAndIsDeletedFalse(slug);
+            return workspaceRepository.existsBySlug(slug);
         }
 
-        return workspaceRepository.existsBySlugAndIsDeletedFalseAndIdNot(slug, currentWorkspaceId);
+        return workspaceRepository.existsBySlugAndIdNot(slug, currentWorkspaceId);
     }
 
     private String slugify(String value) {

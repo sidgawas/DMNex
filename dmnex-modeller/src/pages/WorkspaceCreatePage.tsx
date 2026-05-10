@@ -8,11 +8,12 @@ import { useWorkspaceStore } from '../features/workspace/useWorkspaceStore'
 function WorkspaceCreatePage() {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const navigate = useNavigate()
   const { createWorkspace } = useWorkspaceStore()
 
-  const handleCreateWorkspace = () => {
+  const handleCreateWorkspace = async () => {
     const trimmedName = name.trim()
 
     if (!trimmedName) {
@@ -21,8 +22,16 @@ function WorkspaceCreatePage() {
     }
 
     setError(null)
-    const workspace = createWorkspace(trimmedName)
-    navigate(`/workspaces/${workspace.id}/dmns`)
+    setIsSaving(true)
+
+    try {
+      const workspace = await createWorkspace(trimmedName)
+      navigate(`/workspaces/${workspace.id}/dmns`)
+    } catch {
+      setError('Failed to create workspace. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -65,16 +74,18 @@ function WorkspaceCreatePage() {
           placeholder="Risk Management"
           value={name}
           onChange={(event) => setName(event.target.value)}
+          disabled={isSaving}
           fullWidth
         />
 
         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button
             variant="contained"
-            onClick={handleCreateWorkspace}
+            onClick={() => void handleCreateWorkspace()}
             startIcon={<SaveOutlinedIcon />}
+            disabled={isSaving}
           >
-            Create Workspace
+            {isSaving ? 'Creating...' : 'Create Workspace'}
           </Button>
         </Box>
       </Paper>

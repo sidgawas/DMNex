@@ -1,9 +1,11 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
+import { workspaceApi } from '../../api/workspaceApi'
 import {
   WorkspaceStoreContext,
   type DmnDefinition,
@@ -16,6 +18,15 @@ const STORAGE_KEY = 'dmnex.workspace-store.v1'
 type WorkspaceStoreState = {
   workspaces: Workspace[]
   dmns: DmnDefinition[]
+}
+
+type WorkspacePaginationState = {
+  page: number
+  size: number
+  totalItems: number
+  totalPages: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 
 const slugify = (value: string) =>
@@ -55,8 +66,34 @@ type WorkspaceStoreProviderProps = {
   children: ReactNode
 }
 
+const toWorkspace = (workspace: {
+  id: string
+  name: string
+  slug: string
+  createdAt: string
+  updatedAt: string
+}): Workspace => ({
+  id: workspace.id,
+  name: workspace.name,
+  slug: workspace.slug,
+  createdAt: workspace.createdAt,
+  updatedAt: workspace.updatedAt,
+})
+
+const WORKSPACES_PAGE_SIZE = 10
+
 export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps) {
   const [state, setState] = useState<WorkspaceStoreState>(() => getInitialState())
+  const [workspacePagination, setWorkspacePagination] = useState<WorkspacePaginationState>({
+    page: 0,
+    size: WORKSPACES_PAGE_SIZE,
+    totalItems: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false,
+  })
+  const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
+  const [workspacesError, setWorkspacesError] = useState<string | null>(null)
 
   const persist = useCallback((nextState: WorkspaceStoreState) => {
     setState(nextState)
@@ -82,39 +119,76 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
     [state.dmns],
   )
 
-  const createWorkspace = useCallback(
-    (name: string) => {
-      const now = new Date().toISOString()
-      const normalizedName = name.trim()
-      const baseSlug = slugify(normalizedName) || `workspace-${state.workspaces.length + 1}`
+  const refreshWorkspaces = useCallback(async (targetPage?: number, targetSize?: number) => {
+    setIsWorkspacesLoading(true)
+    setWorkspacesError(null)
 
-      const existingSlugs = new Set(state.workspaces.map((workspace) => workspace.slug))
-
-      let nextSlug = baseSlug
-      let counter = 2
-
-      while (existingSlugs.has(nextSlug)) {
-        nextSlug = `${baseSlug}-${counter}`
-        counter += 1
-      }
-
-      const workspace: Workspace = {
-        id: createId(),
-        name: normalizedName,
-        slug: nextSlug,
-        createdAt: now,
-        updatedAt: now,
-      }
-
-      persist({
-        ...state,
-        workspaces: [workspace, ...state.workspaces],
+    try {
+      const requestedPage = targetPage ?? workspacePagination.page
+      const requestedSize = targetSize ?? workspacePagination.size
+      const response = await workspaceApi.listWorkspaces({
+        page: requestedPage,
+        size: requestedSize,
       })
+
+      setState((previous) => ({
+        ...previous,
+        workspaces: response.items.map(toWorkspace),
+      }))
+      setWorkspacePagination((previous) => ({
+        ...previous,
+        page: response.page,
+        size: response.size,
+        totalItems: response.totalItems,
+        totalPages: response.totalPages,
+        hasNext: response.hasNext,
+        hasPrevious: response.hasPrevious,
+      }))
+    } catch {
+      setWorkspacesError('Failed to load workspaces. Please try again.')
+    } finally {
+      setIsWorkspacesLoading(false)
+    }
+  }, [workspacePagination.page, workspacePagination.size])
+
+  const setWorkspacesPageSize = useCallback(
+    async (pageSize: number) => {
+      await refreshWorkspaces(0, pageSize)
+    },
+    [refreshWorkspaces],
+  )
+
+  useEffect(() => {
+    void refreshWorkspaces()
+  }, [refreshWorkspaces])
+
+  const createWorkspace = useCallback(
+    async (name: string) => {
+      const created = await workspaceApi.createWorkspace({ name: name.trim() })
+      const workspace = toWorkspace(created)
+
+      void refreshWorkspaces(0)
 
       return workspace
     },
-    [persist, state],
+    [refreshWorkspaces],
   )
+
+  const updateWorkspaceName = useCallback(
+    async (workspaceId: string, name: string) => {
+      const updated = await workspaceApi.updateWorkspace(workspaceId, { name: name.trim() })
+      const workspace = toWorkspace(updated)
+
+      await refreshWorkspaces(workspacePagination.page, workspacePagination.size)
+
+      return workspace
+    },
+    [refreshWorkspaces, workspacePagination.page, workspacePagination.size],
+  )
+
+  const deleteWorkspace = useCallback(async (workspaceId: string) => {
+    await workspaceApi.deleteWorkspace(workspaceId)
+  }, [])
 
   const createDmn = useCallback(
     (workspaceId: string, title: string) => {
@@ -188,6 +262,18 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
   const value = useMemo<WorkspaceStoreValue>(
     () => ({
       workspaces: state.workspaces,
+      workspacesPage: workspacePagination.page,
+      workspacesPageSize: workspacePagination.size,
+      workspacesTotalPages: workspacePagination.totalPages,
+      workspacesTotalItems: workspacePagination.totalItems,
+      workspacesHasNext: workspacePagination.hasNext,
+      workspacesHasPrevious: workspacePagination.hasPrevious,
+      isWorkspacesLoading,
+      workspacesError,
+      refreshWorkspaces,
+      setWorkspacesPageSize,
+      updateWorkspaceName,
+      deleteWorkspace,
       listDmns,
       getWorkspace,
       getDmn,
@@ -195,7 +281,27 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       createDmn,
       renameDmn,
     }),
-    [createDmn, createWorkspace, getDmn, getWorkspace, listDmns, renameDmn, state.workspaces],
+    [
+      createDmn,
+      createWorkspace,
+      deleteWorkspace,
+      getDmn,
+      getWorkspace,
+      isWorkspacesLoading,
+      listDmns,
+      refreshWorkspaces,
+      renameDmn,
+      setWorkspacesPageSize,
+      updateWorkspaceName,
+      workspacePagination.hasNext,
+      workspacePagination.hasPrevious,
+      workspacePagination.page,
+      workspacePagination.size,
+      workspacePagination.totalItems,
+      workspacePagination.totalPages,
+      state.workspaces,
+      workspacesError,
+    ],
   )
 
   return <WorkspaceStoreContext.Provider value={value}>{children}</WorkspaceStoreContext.Provider>
