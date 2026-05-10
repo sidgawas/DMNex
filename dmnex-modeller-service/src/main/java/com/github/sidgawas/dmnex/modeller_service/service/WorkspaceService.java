@@ -1,6 +1,7 @@
 package com.github.sidgawas.dmnex.modeller_service.service;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,13 +16,17 @@ import com.github.sidgawas.dmnex.modeller_service.mapper.WorkspaceMapper;
 import com.github.sidgawas.dmnex.modeller_service.model.request.WorkspaceCreateRequest;
 import com.github.sidgawas.dmnex.modeller_service.model.request.WorkspaceUpdateRequest;
 import com.github.sidgawas.dmnex.modeller_service.repository.WorkspaceRepository;
+import com.github.sidgawas.dmnex.modeller_service.util.SortBuilder;
 
 @Service
 public class WorkspaceService {
 
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "name", "slug", "createdAt", "updatedAt");
+
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMapper workspaceMapper;
     private final EntityIdGenerator entityIdGenerator;
+    private final SortBuilder sortBuilder;
 
     public WorkspaceService(
             WorkspaceRepository workspaceRepository,
@@ -30,6 +35,7 @@ public class WorkspaceService {
         this.workspaceRepository = workspaceRepository;
         this.workspaceMapper = workspaceMapper;
         this.entityIdGenerator = entityIdGenerator;
+        this.sortBuilder = new SortBuilder(Sort.Direction.DESC, ALLOWED_SORT_FIELDS);
     }
 
     @Transactional
@@ -56,10 +62,10 @@ public class WorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public Page<WorkspaceEntity> listAll(int page, int size, String query) {
+    public Page<WorkspaceEntity> listAll(int page, int size, String query, String sortBy, String sortOrder) {
         validatePagination(page, size);
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Pageable pageable = PageRequest.of(page, size, buildSort(sortBy, sortOrder));
         String normalizedQuery = normalizeQuery(query);
 
         if (normalizedQuery == null) {
@@ -67,6 +73,10 @@ public class WorkspaceService {
         }
 
         return workspaceRepository.findByIsDeletedFalseAndNameContainingIgnoreCase(normalizedQuery, pageable);
+    }
+
+    private Sort buildSort(String sortBy, String sortOrder) {
+        return sortBuilder.build(sortBy, sortOrder).and(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     @Transactional

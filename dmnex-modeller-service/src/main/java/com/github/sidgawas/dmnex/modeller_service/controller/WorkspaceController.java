@@ -51,8 +51,10 @@ public class WorkspaceController extends BaseController {
     public ResponseEntity<PaginationResponse<WorkspaceResponse>> listWorkspaces(
             @RequestParam(defaultValue = "0", name = "page") int page,
             @RequestParam(defaultValue = "20", name = "size") int size,
-            @RequestParam(required = false, name = "query") String query) {
-        Page<WorkspaceResponse> responsePage = workspaceService.listAll(page, size, query)
+            @RequestParam(required = false, name = "query") String query,
+            @RequestParam(defaultValue = "updatedAt", name = "sortBy") String sortBy,
+            @RequestParam(defaultValue = "desc", name = "sortOrder") String sortOrder) {
+        Page<WorkspaceResponse> responsePage = workspaceService.listAll(page, size, query, sortBy, sortOrder)
                 .map(workspaceMapper::toResponse);
         PaginationResponse<WorkspaceResponse> response = paginationMapper.toPaginationResponse(responsePage);
         return ResponseEntity.ok(response);

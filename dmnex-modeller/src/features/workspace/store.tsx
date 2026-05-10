@@ -81,6 +81,8 @@ const toWorkspace = (workspace: {
 })
 
 const WORKSPACES_PAGE_SIZE = 10
+const DEFAULT_WORKSPACE_SORT_BY = 'name'
+const DEFAULT_WORKSPACE_SORT_ORDER = 'asc' as const
 
 export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps) {
   const [state, setState] = useState<WorkspaceStoreState>(() => getInitialState())
@@ -119,16 +121,28 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
     [state.dmns],
   )
 
-  const refreshWorkspaces = useCallback(async (targetPage?: number, targetSize?: number) => {
+  const refreshWorkspaces = useCallback(async (
+    targetPage?: number,
+    targetSize?: number,
+    targetSortBy?: string,
+    targetSortOrder?: 'asc' | 'desc',
+    targetQuery?: string,
+  ) => {
     setIsWorkspacesLoading(true)
     setWorkspacesError(null)
 
     try {
       const requestedPage = targetPage ?? workspacePagination.page
       const requestedSize = targetSize ?? workspacePagination.size
+      const requestedSortBy = targetSortBy ?? DEFAULT_WORKSPACE_SORT_BY
+      const requestedSortOrder = targetSortOrder ?? DEFAULT_WORKSPACE_SORT_ORDER
+      const requestedQuery = targetQuery?.trim()
       const response = await workspaceApi.listWorkspaces({
         page: requestedPage,
         size: requestedSize,
+        sortBy: requestedSortBy,
+        sortOrder: requestedSortOrder,
+        query: requestedQuery ? requestedQuery : undefined,
       })
 
       setState((previous) => ({
@@ -159,7 +173,13 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
   )
 
   useEffect(() => {
-    void refreshWorkspaces()
+    const refreshTimer = window.setTimeout(() => {
+      void refreshWorkspaces()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(refreshTimer)
+    }
   }, [refreshWorkspaces])
 
   const createWorkspace = useCallback(

@@ -1,8 +1,10 @@
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined'
+import ClearOutlinedIcon from '@mui/icons-material/ClearOutlined'
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 import WorkspacesOutlinedIcon from '@mui/icons-material/WorkspacesOutlined'
-import { useEffect, useState, type ChangeEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   Alert,
   Box,
@@ -16,6 +18,7 @@ import {
   DialogTitle,
   FormControl,
   IconButton,
+  InputAdornment,
   List,
   ListItem,
   ListItemButton,
@@ -34,6 +37,23 @@ import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useWorkspaceStore } from '../features/workspace/useWorkspaceStore'
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50] as const
+const SORT_BY_OPTIONS = [
+  { value: 'name', label: 'Name' },
+  { value: 'updatedAt', label: 'Updated At' },
+  { value: 'createdAt', label: 'Created At' },
+  { value: 'slug', label: 'Slug' },
+  { value: 'id', label: 'ID' },
+] as const
+const SORT_ORDER_OPTIONS = [
+  { value: 'asc', label: 'Ascending' },
+  { value: 'desc', label: 'Descending' },
+] as const
+
+type SortByOption = (typeof SORT_BY_OPTIONS)[number]['value']
+type SortOrderOption = (typeof SORT_ORDER_OPTIONS)[number]['value']
+
+const DEFAULT_SORT_BY: SortByOption = 'name'
+const DEFAULT_SORT_ORDER: SortOrderOption = 'asc'
 
 const parsePositiveInt = (value: string | null, fallback: number) => {
   const parsed = Number(value)
@@ -65,29 +85,63 @@ function WorkspaceListPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const requestedPage = parsePositiveInt(searchParams.get('page'), 1)
   const requestedSize = parsePositiveInt(searchParams.get('size'), 10)
+  const requestedQuery = searchParams.get('query')
+  const requestedSortBy = searchParams.get('sortBy')
+  const requestedSortOrder = searchParams.get('sortOrder')
   const normalizedSize = PAGE_SIZE_OPTIONS.includes(requestedSize as (typeof PAGE_SIZE_OPTIONS)[number])
     ? requestedSize
     : 10
+  const normalizedQuery = requestedQuery?.trim() || ''
+  const normalizedSortBy = SORT_BY_OPTIONS.some((option) => option.value === requestedSortBy)
+    ? requestedSortBy
+    : DEFAULT_SORT_BY
+  const normalizedSortOrder = SORT_ORDER_OPTIONS.some((option) => option.value === requestedSortOrder)
+    ? requestedSortOrder
+    : DEFAULT_SORT_ORDER
+  const getSearchParamsState = (
+    page: number,
+    size: number,
+    sortBy: SortByOption,
+    sortOrder: SortOrderOption,
+    query: string,
+  ) => {
+    const nextParams: Record<string, string> = {
+      page: String(page),
+      size: String(size),
+      sortBy,
+      sortOrder,
+    }
+
+    if (query) {
+      nextParams.query = query
+    }
+
+    return nextParams
+  }
+
   const isQueryNormalized =
     searchParams.get('page') === String(requestedPage) &&
-    searchParams.get('size') === String(normalizedSize)
+    searchParams.get('size') === String(normalizedSize) &&
+    searchParams.get('sortBy') === normalizedSortBy &&
+    searchParams.get('sortOrder') === normalizedSortOrder &&
+    searchParams.get('query') === (normalizedQuery || null)
 
   useEffect(() => {
     if (!isQueryNormalized) {
       setSearchParams(
-        {
-          page: String(requestedPage),
-          size: String(normalizedSize),
-        },
+        getSearchParamsState(requestedPage, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery),
         { replace: true },
       )
       return
     }
 
-    void refreshWorkspaces(requestedPage - 1, normalizedSize)
+    void refreshWorkspaces(requestedPage - 1, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery)
   }, [
     isQueryNormalized,
+    normalizedQuery,
     normalizedSize,
+    normalizedSortBy,
+    normalizedSortOrder,
     refreshWorkspaces,
     requestedPage,
     setSearchParams,
@@ -99,11 +153,32 @@ function WorkspaceListPage() {
 
   const handlePageSizeChange = (event: SelectChangeEvent<number>) => {
     const nextSize = Number(event.target.value)
-    setSearchParams({ page: '1', size: String(nextSize) })
+    setSearchParams(getSearchParamsState(1, nextSize, normalizedSortBy, normalizedSortOrder, normalizedQuery))
   }
 
   const handlePageChange = (_: ChangeEvent<unknown>, nextPage: number) => {
-    setSearchParams({ page: String(nextPage), size: String(normalizedSize) })
+    setSearchParams(getSearchParamsState(nextPage, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery))
+  }
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const query = (formData.get('query')?.toString() ?? '').trim()
+    setSearchParams(getSearchParamsState(1, normalizedSize, normalizedSortBy, normalizedSortOrder, query))
+  }
+
+  const handleClearSearch = () => {
+    setSearchParams(getSearchParamsState(1, normalizedSize, normalizedSortBy, normalizedSortOrder, ''))
+  }
+
+  const handleSortByChange = (event: SelectChangeEvent<SortByOption>) => {
+    const nextSortBy = event.target.value as SortByOption
+    setSearchParams(getSearchParamsState(1, normalizedSize, nextSortBy, normalizedSortOrder, normalizedQuery))
+  }
+
+  const handleSortOrderChange = (event: SelectChangeEvent<SortOrderOption>) => {
+    const nextSortOrder = event.target.value as SortOrderOption
+    setSearchParams(getSearchParamsState(1, normalizedSize, normalizedSortBy, nextSortOrder, normalizedQuery))
   }
 
   const handleStartEditWorkspace = (workspaceId: string, workspaceName: string) => {
@@ -131,7 +206,7 @@ function WorkspaceListPage() {
       await updateWorkspaceName(workspacePendingEdit.id, trimmedName)
       setWorkspacePendingEdit(null)
       setWorkspaceEditName('')
-      void refreshWorkspaces(requestedPage - 1, normalizedSize)
+      void refreshWorkspaces(requestedPage - 1, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery)
     } catch {
       setWorkspaceEditError('Failed to update workspace name. Please try again.')
     } finally {
@@ -153,11 +228,11 @@ function WorkspaceListPage() {
       setWorkspacePendingDelete(null)
 
       if (nextPage !== requestedPage) {
-        setSearchParams({ page: String(nextPage), size: String(normalizedSize) })
+        setSearchParams(getSearchParamsState(nextPage, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery))
         return
       }
 
-      void refreshWorkspaces(requestedPage - 1, normalizedSize)
+      void refreshWorkspaces(requestedPage - 1, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery)
     } catch {
       // Store-level error state is surfaced in the page alert via workspacesError.
     } finally {
@@ -195,6 +270,61 @@ function WorkspaceListPage() {
         </Button>
       </Box>
 
+      <Paper
+        component="form"
+        onSubmit={handleSearchSubmit}
+        variant="outlined"
+        sx={{
+          p: 1,
+          borderRadius: 2,
+        }}
+      >
+        <TextField
+          key={normalizedQuery}
+          name="query"
+          fullWidth
+          size="small"
+          label="Search by workspace name"
+          placeholder="Type a workspace name"
+          defaultValue={normalizedQuery}
+          disabled={isWorkspacesLoading}
+          sx={{ minWidth: { xs: '100%', sm: 260 } }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlinedIcon fontSize="small" color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  {normalizedQuery.length > 0 ? (
+                    <IconButton
+                      aria-label="Clear search"
+                      size="small"
+                      onClick={handleClearSearch}
+                      disabled={isWorkspacesLoading}
+                      type="button"
+                    >
+                      <ClearOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  ) : null}
+                  <IconButton
+                    aria-label="Search workspaces"
+                    size="small"
+                    type="submit"
+                    color="primary"
+                    disabled={isWorkspacesLoading}
+                  >
+                    <SearchOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+      </Paper>
+
       {workspacesError ? (
         <Alert
           severity="error"
@@ -202,7 +332,9 @@ function WorkspaceListPage() {
             <Button
               color="inherit"
               size="small"
-              onClick={() => void refreshWorkspaces(requestedPage - 1, normalizedSize)}
+              onClick={() =>
+                void refreshWorkspaces(requestedPage - 1, normalizedSize, normalizedSortBy, normalizedSortOrder, normalizedQuery)
+              }
             >
               Retry
             </Button>
@@ -335,6 +467,38 @@ function WorkspaceListPage() {
                   <MenuItem value={10}>10</MenuItem>
                   <MenuItem value={20}>20</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
+                </Select>
+              </FormControl>
+              <Typography variant="body2" color="text.secondary">
+                Sort by
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <Select<SortByOption>
+                  value={normalizedSortBy}
+                  onChange={handleSortByChange}
+                  disabled={isWorkspacesLoading}
+                >
+                  {SORT_BY_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Typography variant="body2" color="text.secondary">
+                Order
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <Select<SortOrderOption>
+                  value={normalizedSortOrder}
+                  onChange={handleSortOrderChange}
+                  disabled={isWorkspacesLoading}
+                >
+                  {SORT_ORDER_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
               <Pagination

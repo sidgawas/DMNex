@@ -28,7 +28,13 @@ export type WorkspaceStoreValue = {
   workspacesHasPrevious: boolean
   isWorkspacesLoading: boolean
   workspacesError: string | null
-  refreshWorkspaces: (targetPage?: number, targetSize?: number) => Promise<void>
+  refreshWorkspaces: (
+    targetPage?: number,
+    targetSize?: number,
+    targetSortBy?: string,
+    targetSortOrder?: 'asc' | 'desc',
+    targetQuery?: string,
+  ) => Promise<void>
   setWorkspacesPageSize: (pageSize: number) => Promise<void>
   updateWorkspaceName: (workspaceId: string, name: string) => Promise<Workspace>
   deleteWorkspace: (workspaceId: string) => Promise<void>

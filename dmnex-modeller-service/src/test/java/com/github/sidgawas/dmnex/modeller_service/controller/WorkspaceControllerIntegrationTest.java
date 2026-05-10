@@ -95,7 +95,8 @@ class WorkspaceControllerIntegrationTest {
         WorkspaceEntity second = WorkspaceEntity.builder().id("2").name("Two").slug("two").build();
         second.setCreatedAt(LocalDateTime.now().minusHours(4));
         second.setUpdatedAt(LocalDateTime.now().minusHours(3));
-        PageRequest pageRequest = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        PageRequest pageRequest = PageRequest.of(0, 20,
+            Sort.by(Sort.Direction.DESC, "updatedAt").and(Sort.by(Sort.Direction.ASC, "id")));
 
         when(workspaceRepository.findByIsDeletedFalse(pageRequest))
             .thenReturn(new PageImpl<>(List.of(first, second), pageRequest, 2));
@@ -118,7 +119,8 @@ class WorkspaceControllerIntegrationTest {
         @Test
         void listWorkspaceShouldSearchByNameWhenQueryProvided() throws Exception {
         WorkspaceEntity first = WorkspaceEntity.builder().id("1").name("Risk Management").slug("risk-management").build();
-        PageRequest pageRequest = PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        PageRequest pageRequest = PageRequest.of(1, 5,
+            Sort.by(Sort.Direction.ASC, "name").and(Sort.by(Sort.Direction.ASC, "id")));
 
         when(workspaceRepository.findByIsDeletedFalseAndNameContainingIgnoreCase("risk", pageRequest))
             .thenReturn(new PageImpl<>(List.of(first), pageRequest, 6));
@@ -126,7 +128,9 @@ class WorkspaceControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/workspaces")
             .queryParam("page", "1")
             .queryParam("size", "5")
-            .queryParam("query", "risk"))
+            .queryParam("query", "risk")
+            .queryParam("sortBy", "name")
+            .queryParam("sortOrder", "asc"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items[0].id").value("1"))
             .andExpect(jsonPath("$.page").value(1))

@@ -106,12 +106,13 @@ class WorkspaceServiceTest {
     void listAllShouldReturnPaginatedActiveWorkspacesWhenQueryMissing() {
         WorkspaceEntity first = WorkspaceEntity.builder().id("1").name("First").slug("first").build();
         WorkspaceEntity second = WorkspaceEntity.builder().id("2").name("Second").slug("second").build();
-        PageRequest pageRequest = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        PageRequest pageRequest = PageRequest.of(0, 20,
+            Sort.by(Sort.Direction.DESC, "updatedAt").and(Sort.by(Sort.Direction.ASC, "id")));
         Page<WorkspaceEntity> page = new PageImpl<>(List.of(first, second), pageRequest, 2);
 
         when(workspaceRepository.findByIsDeletedFalse(pageRequest)).thenReturn(page);
 
-        Page<WorkspaceEntity> list = workspaceService.listAll(0, 20, null);
+        Page<WorkspaceEntity> list = workspaceService.listAll(0, 20, null, "updatedAt", "desc");
 
         assertThat(list.getContent()).containsExactly(first, second);
         assertThat(list.getTotalElements()).isEqualTo(2);
@@ -120,12 +121,13 @@ class WorkspaceServiceTest {
     @Test
     void listAllShouldSearchByNameWhenQueryProvided() {
         WorkspaceEntity first = WorkspaceEntity.builder().id("1").name("Risk Management").slug("risk-management").build();
-        PageRequest pageRequest = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        PageRequest pageRequest = PageRequest.of(0, 10,
+            Sort.by(Sort.Direction.ASC, "name").and(Sort.by(Sort.Direction.ASC, "id")));
         Page<WorkspaceEntity> page = new PageImpl<>(List.of(first), pageRequest, 1);
 
         when(workspaceRepository.findByIsDeletedFalseAndNameContainingIgnoreCase("risk", pageRequest)).thenReturn(page);
 
-        Page<WorkspaceEntity> list = workspaceService.listAll(0, 10, "  risk  ");
+        Page<WorkspaceEntity> list = workspaceService.listAll(0, 10, "  risk  ", "name", "asc");
 
         assertThat(list.getContent()).containsExactly(first);
         assertThat(list.getTotalElements()).isEqualTo(1);
@@ -133,9 +135,27 @@ class WorkspaceServiceTest {
 
     @Test
     void listAllShouldFailWhenPageIsNegative() {
-        assertThatThrownBy(() -> workspaceService.listAll(-1, 20, null))
+        assertThatThrownBy(() -> workspaceService.listAll(-1, 20, null, "updatedAt", "desc"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Page must be greater than or equal to 0.");
+
+        verify(workspaceRepository, never()).findByIsDeletedFalse(any());
+    }
+
+    @Test
+    void listAllShouldFailForUnsupportedSortField() {
+        assertThatThrownBy(() -> workspaceService.listAll(0, 20, null, "status", "asc"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported sortBy value: status");
+
+        verify(workspaceRepository, never()).findByIsDeletedFalse(any());
+    }
+
+    @Test
+    void listAllShouldFailForInvalidSortOrder() {
+        assertThatThrownBy(() -> workspaceService.listAll(0, 20, null, "name", "up"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("sortOrder must be either asc or desc.");
 
         verify(workspaceRepository, never()).findByIsDeletedFalse(any());
     }
