@@ -1,3 +1,7 @@
 databaseChangeLog:
   - include:
       file: db/changelog/changes/db.changelog-001-create-workspaces.yaml
+  - include:
+      file: db/changelog/changes/db.changelog-002-create-dmns.yaml
+  - include:
+      file: db/changelog/changes/db.changelog-003-create-dmn-published-versions.yaml

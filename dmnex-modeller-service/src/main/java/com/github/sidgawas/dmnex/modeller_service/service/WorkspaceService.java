@@ -10,11 +10,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.github.sidgawas.dmnex.modeller_service.entity.DmnEntity;
 import com.github.sidgawas.dmnex.modeller_service.entity.WorkspaceEntity;
 import com.github.sidgawas.dmnex.modeller_service.exception.ResourceNotFoundException;
 import com.github.sidgawas.dmnex.modeller_service.mapper.WorkspaceMapper;
 import com.github.sidgawas.dmnex.modeller_service.model.request.WorkspaceCreateRequest;
 import com.github.sidgawas.dmnex.modeller_service.model.request.WorkspaceUpdateRequest;
+import com.github.sidgawas.dmnex.modeller_service.repository.DmnRepository;
 import com.github.sidgawas.dmnex.modeller_service.repository.WorkspaceRepository;
 import com.github.sidgawas.dmnex.modeller_service.util.SortBuilder;
 
@@ -24,15 +26,18 @@ public class WorkspaceService {
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "name", "slug", "createdAt", "updatedAt");
 
     private final WorkspaceRepository workspaceRepository;
+    private final DmnRepository dmnRepository;
     private final WorkspaceMapper workspaceMapper;
     private final EntityIdGenerator entityIdGenerator;
     private final SortBuilder sortBuilder;
 
     public WorkspaceService(
             WorkspaceRepository workspaceRepository,
+            DmnRepository dmnRepository,
             WorkspaceMapper workspaceMapper,
             EntityIdGenerator entityIdGenerator) {
         this.workspaceRepository = workspaceRepository;
+        this.dmnRepository = dmnRepository;
         this.workspaceMapper = workspaceMapper;
         this.entityIdGenerator = entityIdGenerator;
         this.sortBuilder = new SortBuilder(Sort.Direction.DESC, ALLOWED_SORT_FIELDS);
@@ -98,11 +103,29 @@ public class WorkspaceService {
         WorkspaceEntity entity = getById(id);
         LocalDateTime now = LocalDateTime.now();
 
+        softDeleteDmnsByWorkspaceId(id, now);
+
         entity.setIsDeleted(Boolean.TRUE);
         entity.setDeletedAt(now);
         entity.setUpdatedAt(now);
 
         workspaceRepository.save(entity);
+    }
+
+    private void softDeleteDmnsByWorkspaceId(String workspaceId, LocalDateTime now) {
+        var dmns = dmnRepository.findByWorkspaceIdAndIsDeletedFalse(workspaceId);
+
+        if (dmns.isEmpty()) {
+            return;
+        }
+
+        for (DmnEntity dmn : dmns) {
+            dmn.setIsDeleted(Boolean.TRUE);
+            dmn.setDeletedAt(now);
+            dmn.setUpdatedAt(now);
+        }
+
+        dmnRepository.saveAll(dmns);
     }
 
     private String normalizeName(String rawName) {

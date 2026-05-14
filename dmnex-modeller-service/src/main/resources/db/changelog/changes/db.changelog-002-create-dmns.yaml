@@ -1,0 +1,80 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-dmns-table
+      author: copilot
+      changes:
+        - createTable:
+            tableName: dmns
+            columns:
+              - column:
+                  name: id
+                  type: varchar(36)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: workspace_id
+                  type: varchar(36)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(1000)
+              - column:
+                  name: xml
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+              - column:
+                  name: deleted_at
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: updated_by
+                  type: varchar(255)
+              - column:
+                  name: deleted_by
+                  type: varchar(255)
+        - addForeignKeyConstraint:
+            baseTableName: dmns
+            baseColumnNames: workspace_id
+            constraintName: fk_dmns_workspace
+            referencedTableName: workspaces
+            referencedColumnNames: id
+            onDelete: RESTRICT
+            onUpdate: RESTRICT
+        - createIndex:
+            indexName: idx_dmns_workspace_is_deleted
+            tableName: dmns
+            columns:
+              - column:
+                  name: workspace_id
+              - column:
+                  name: is_deleted
+        - createIndex:
+            indexName: idx_dmns_updated_at
+            tableName: dmns
+            columns:
+              - column:
+                  name: updated_at

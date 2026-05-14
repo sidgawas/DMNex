@@ -23,11 +23,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.github.sidgawas.dmnex.modeller_service.entity.DmnEntity;
 import com.github.sidgawas.dmnex.modeller_service.entity.WorkspaceEntity;
 import com.github.sidgawas.dmnex.modeller_service.exception.ResourceNotFoundException;
 import com.github.sidgawas.dmnex.modeller_service.mapper.WorkspaceMapper;
 import com.github.sidgawas.dmnex.modeller_service.model.request.WorkspaceCreateRequest;
 import com.github.sidgawas.dmnex.modeller_service.model.request.WorkspaceUpdateRequest;
+import com.github.sidgawas.dmnex.modeller_service.repository.DmnRepository;
 import com.github.sidgawas.dmnex.modeller_service.repository.WorkspaceRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +39,9 @@ class WorkspaceServiceTest {
     private WorkspaceRepository workspaceRepository;
 
     @Mock
+    private DmnRepository dmnRepository;
+
+    @Mock
     private EntityIdGenerator entityIdGenerator;
 
     private WorkspaceService workspaceService;
@@ -44,7 +49,7 @@ class WorkspaceServiceTest {
     @BeforeEach
     void setUp() {
         WorkspaceMapper workspaceMapper = Mappers.getMapper(WorkspaceMapper.class);
-        workspaceService = new WorkspaceService(workspaceRepository, workspaceMapper, entityIdGenerator);
+        workspaceService = new WorkspaceService(workspaceRepository, dmnRepository, workspaceMapper, entityIdGenerator);
     }
 
     @Test
@@ -191,9 +196,18 @@ class WorkspaceServiceTest {
                 .name("To Delete")
                 .slug("to-delete")
                 .build();
+        DmnEntity dmn = DmnEntity.builder()
+            .id("dmn-id")
+            .title("Decision")
+            .xml("<definitions id=\"decision\"/>")
+            .workspace(entity)
+            .build();
         entity.setIsDeleted(false);
+        dmn.setIsDeleted(false);
 
         when(workspaceRepository.findByIdAndIsDeletedFalse("workspace-id")).thenReturn(Optional.of(entity));
+        when(dmnRepository.findByWorkspaceIdAndIsDeletedFalse("workspace-id")).thenReturn(List.of(dmn));
+        when(dmnRepository.saveAll(any(List.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         workspaceService.deleteById("workspace-id");
@@ -205,6 +219,14 @@ class WorkspaceServiceTest {
         assertThat(saved.getIsDeleted()).isTrue();
         assertThat(saved.getDeletedAt()).isNotNull();
         assertThat(saved.getUpdatedAt()).isNotNull();
+
+        ArgumentCaptor<List<DmnEntity>> dmnCaptor = ArgumentCaptor.forClass(List.class);
+        verify(dmnRepository).saveAll(dmnCaptor.capture());
+        assertThat(dmnCaptor.getValue()).hasSize(1);
+        DmnEntity savedDmn = dmnCaptor.getValue().get(0);
+        assertThat(savedDmn.getIsDeleted()).isTrue();
+        assertThat(savedDmn.getDeletedAt()).isNotNull();
+        assertThat(savedDmn.getUpdatedAt()).isNotNull();
     }
 
     @Test
