@@ -257,6 +257,9 @@ function AppShell() {
         sx={{
           flexGrow: 1,
           minWidth: 0,
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
           p: { xs: 2, md: 3 },
           transition: (theme) =>
             theme.transitions.create(['padding'], {
@@ -268,7 +271,10 @@ function AppShell() {
         <Paper
           elevation={0}
           sx={{
-            minHeight: 'calc(100vh - 48px)',
+            minHeight: 0,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
             borderRadius: 3,
             border: '1px solid',
             borderColor: 'divider',
@@ -276,7 +282,9 @@ function AppShell() {
             p: { xs: 2, md: 3 },
           }}
         >
-          <Outlet />
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', '& > *': { flex: 1, minHeight: 0 } }}>
+            <Outlet />
+          </Box>
         </Paper>
       </Box>
     </Box>

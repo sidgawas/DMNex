@@ -1,3 +1,4 @@
+import type { DmnResponseLite } from '../../api/dmnApi'
 import { createContext } from 'react'
 
 export type Workspace = {
@@ -8,15 +9,7 @@ export type Workspace = {
   updatedAt: string
 }
 
-export type DmnDefinition = {
-  id: string
-  workspaceId: string
-  title: string
-  version: string
-  filePath: string
-  createdAt: string
-  updatedAt: string
-}
+export type DmnDefinition = DmnResponseLite
 
 export type WorkspaceStoreValue = {
   workspaces: Workspace[]
@@ -28,6 +21,15 @@ export type WorkspaceStoreValue = {
   workspacesHasPrevious: boolean
   isWorkspacesLoading: boolean
   workspacesError: string | null
+  dmns: DmnDefinition[]
+  dmnsPage: number
+  dmnsPageSize: number
+  dmnsTotalPages: number
+  dmnsTotalItems: number
+  dmnsHasNext: boolean
+  dmnsHasPrevious: boolean
+  isDmnsLoading: boolean
+  dmnsError: string | null
   refreshWorkspaces: (
     targetPage?: number,
     targetSize?: number,
@@ -38,12 +40,22 @@ export type WorkspaceStoreValue = {
   setWorkspacesPageSize: (pageSize: number) => Promise<void>
   updateWorkspaceName: (workspaceId: string, name: string) => Promise<Workspace>
   deleteWorkspace: (workspaceId: string) => Promise<void>
+  refreshDmns: (
+    workspaceId: string,
+    targetPage?: number,
+    targetSize?: number,
+    targetSortBy?: string,
+    targetSortOrder?: 'asc' | 'desc',
+    targetQuery?: string,
+  ) => Promise<void>
+  setDmnsPageSize: (pageSize: number) => Promise<void>
   listDmns: (workspaceId: string) => DmnDefinition[]
   getWorkspace: (workspaceId: string) => Workspace | undefined
   getDmn: (workspaceId: string, dmnId: string) => DmnDefinition | undefined
   createWorkspace: (name: string) => Promise<Workspace>
-  createDmn: (workspaceId: string, title: string) => DmnDefinition
-  renameDmn: (workspaceId: string, dmnId: string, title: string) => DmnDefinition | undefined
+  createDmn: (workspaceId: string, title: string, xml: string, description?: string) => Promise<DmnDefinition>
+  updateDmn: (workspaceId: string, dmnId: string, title: string, xml: string, description?: string) => Promise<DmnDefinition>
+  deleteDmn: (workspaceId: string, dmnId: string) => Promise<void>
 }
 
 export const WorkspaceStoreContext = createContext<WorkspaceStoreValue | null>(null)

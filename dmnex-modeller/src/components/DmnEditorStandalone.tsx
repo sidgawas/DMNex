@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import SaveIcon from '@mui/icons-material/Save'
-import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Container, Paper, Typography } from '@mui/material'
 import * as DmnEditorStandalone from '@kie-tools/dmn-editor-standalone/dist'
 
 type DmnEditorInstance = {
@@ -120,6 +120,7 @@ function DmnEditorStandaloneComponent({
       elevation={0}
       sx={{
         display: 'grid',
+        minWidth: '100%',
         gridTemplateRows: errorMessage ? 'auto auto 1fr' : 'auto 1fr',
         minHeight: '100%',
         border: '1px solid',
@@ -177,7 +178,7 @@ function DmnEditorStandaloneComponent({
         </Alert>
       ) : null}
 
-      <Box ref={containerRef} sx={{ minHeight: '100%' }} />
+      <Container ref={containerRef} sx={{ minHeight: '100%', minWidth: '100%' }} />
     </Paper>
   )
 }

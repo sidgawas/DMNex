@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { dmnApi } from '../../api/dmnApi'
 import { workspaceApi } from '../../api/workspaceApi'
 import {
   WorkspaceStoreContext,
@@ -13,11 +14,8 @@ import {
   type WorkspaceStoreValue,
 } from './workspace-context'
 
-const STORAGE_KEY = 'dmnex.workspace-store.v1'
-
 type WorkspaceStoreState = {
   workspaces: Workspace[]
-  dmns: DmnDefinition[]
 }
 
 type WorkspacePaginationState = {
@@ -29,41 +27,13 @@ type WorkspacePaginationState = {
   hasPrevious: boolean
 }
 
-const slugify = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-const createId = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-const getInitialState = (): WorkspaceStoreState => {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-
-    if (!raw) {
-      return { workspaces: [], dmns: [] }
-    }
-
-    const parsed = JSON.parse(raw) as WorkspaceStoreState
-    return {
-      workspaces: Array.isArray(parsed.workspaces) ? parsed.workspaces : [],
-      dmns: Array.isArray(parsed.dmns) ? parsed.dmns : [],
-    }
-  } catch {
-    return { workspaces: [], dmns: [] }
-  }
-}
-
-type WorkspaceStoreProviderProps = {
-  children: ReactNode
+type DmnPaginationState = {
+  page: number
+  size: number
+  totalItems: number
+  totalPages: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 
 const toWorkspace = (workspace: {
@@ -81,11 +51,18 @@ const toWorkspace = (workspace: {
 })
 
 const WORKSPACES_PAGE_SIZE = 10
+const DMNS_PAGE_SIZE = 20
 const DEFAULT_WORKSPACE_SORT_BY = 'name'
 const DEFAULT_WORKSPACE_SORT_ORDER = 'asc' as const
+const DEFAULT_DMN_SORT_BY = 'updatedAt'
+const DEFAULT_DMN_SORT_ORDER = 'desc' as const
+
+type WorkspaceStoreProviderProps = {
+  children: ReactNode
+}
 
 export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps) {
-  const [state, setState] = useState<WorkspaceStoreState>(() => getInitialState())
+  const [state, setState] = useState<WorkspaceStoreState>({ workspaces: [] })
   const [workspacePagination, setWorkspacePagination] = useState<WorkspacePaginationState>({
     page: 0,
     size: WORKSPACES_PAGE_SIZE,
@@ -97,10 +74,18 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
   const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
   const [workspacesError, setWorkspacesError] = useState<string | null>(null)
 
-  const persist = useCallback((nextState: WorkspaceStoreState) => {
-    setState(nextState)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState))
-  }, [])
+  const [dmns, setDmns] = useState<DmnDefinition[]>([])
+  const [dmnPagination, setDmnPagination] = useState<DmnPaginationState>({
+    page: 0,
+    size: DMNS_PAGE_SIZE,
+    totalItems: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false,
+  })
+  const [isDmnsLoading, setIsDmnsLoading] = useState(false)
+  const [dmnsError, setDmnsError] = useState<string | null>(null)
+  const [currentDmnWorkspaceId, setCurrentDmnWorkspaceId] = useState<string | null>(null)
 
   const getWorkspace = useCallback(
     (workspaceId: string) => state.workspaces.find((workspace) => workspace.id === workspaceId),
@@ -109,16 +94,18 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
 
   const listDmns = useCallback(
     (workspaceId: string) =>
-      state.dmns
-        .filter((dmn) => dmn.workspaceId === workspaceId)
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    [state.dmns],
+      currentDmnWorkspaceId === workspaceId
+        ? dmns
+        : [],
+    [dmns, currentDmnWorkspaceId],
   )
 
   const getDmn = useCallback(
     (workspaceId: string, dmnId: string) =>
-      state.dmns.find((dmn) => dmn.workspaceId === workspaceId && dmn.id === dmnId),
-    [state.dmns],
+      currentDmnWorkspaceId === workspaceId
+        ? dmns.find((dmn) => dmn.id === dmnId)
+        : undefined,
+    [dmns, currentDmnWorkspaceId],
   )
 
   const refreshWorkspaces = useCallback(async (
@@ -172,6 +159,61 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
     [refreshWorkspaces],
   )
 
+  const refreshDmns = useCallback(
+    async (
+      workspaceId: string,
+      targetPage?: number,
+      targetSize?: number,
+      targetSortBy?: string,
+      targetSortOrder?: 'asc' | 'desc',
+      targetQuery?: string,
+    ) => {
+      setIsDmnsLoading(true)
+      setDmnsError(null)
+      setCurrentDmnWorkspaceId(workspaceId)
+
+      try {
+        const requestedPage = targetPage ?? dmnPagination.page
+        const requestedSize = targetSize ?? dmnPagination.size
+        const requestedSortBy = targetSortBy ?? DEFAULT_DMN_SORT_BY
+        const requestedSortOrder = targetSortOrder ?? DEFAULT_DMN_SORT_ORDER
+        const requestedQuery = targetQuery?.trim()
+
+        const response = await dmnApi.listDmns(workspaceId, {
+          page: requestedPage,
+          size: requestedSize,
+          sortBy: requestedSortBy,
+          sortOrder: requestedSortOrder,
+          query: requestedQuery ? requestedQuery : undefined,
+        })
+
+        setDmns(response.items)
+        setDmnPagination((previous) => ({
+          ...previous,
+          page: response.page,
+          size: response.size,
+          totalItems: response.totalItems,
+          totalPages: response.totalPages,
+          hasNext: response.hasNext,
+          hasPrevious: response.hasPrevious,
+        }))
+      } catch {
+        setDmnsError('Failed to load DMNs. Please try again.')
+      } finally {
+        setIsDmnsLoading(false)
+      }
+    },
+    [dmnPagination.page, dmnPagination.size],
+  )
+
+  const setDmnsPageSize = useCallback(
+    async (pageSize: number) => {
+      if (!currentDmnWorkspaceId) return
+      await refreshDmns(currentDmnWorkspaceId, 0, pageSize)
+    },
+    [currentDmnWorkspaceId, refreshDmns],
+  )
+
   useEffect(() => {
     const refreshTimer = window.setTimeout(() => {
       void refreshWorkspaces()
@@ -211,72 +253,53 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
   }, [])
 
   const createDmn = useCallback(
-    (workspaceId: string, title: string) => {
-      const workspace = state.workspaces.find((item) => item.id === workspaceId)
-
-      if (!workspace) {
-        throw new Error('Workspace does not exist.')
-      }
-
-      const now = new Date().toISOString()
-      const sanitizedTitle = title.trim()
-      const dmnId = createId()
-      const filePathSlug = slugify(sanitizedTitle) || `decision-${state.dmns.length + 1}`
-
-      const dmn: DmnDefinition = {
-        id: dmnId,
-        workspaceId,
-        title: sanitizedTitle,
-        version: '0.1.0',
-        filePath: `models/${filePathSlug}.dmn`,
-        createdAt: now,
-        updatedAt: now,
-      }
-
-      persist({
-        ...state,
-        workspaces: state.workspaces.map((item) =>
-          item.id === workspaceId ? { ...item, updatedAt: now } : item,
-        ),
-        dmns: [dmn, ...state.dmns],
+    async (workspaceId: string, title: string, xml: string, description?: string) => {
+      const created = await dmnApi.createDmn(workspaceId, {
+        title: title.trim(),
+        xml,
+        description: description?.trim(),
       })
 
-      return dmn
+      // Refresh DMN list for this workspace
+      if (currentDmnWorkspaceId === workspaceId) {
+        await refreshDmns(workspaceId, 0)
+      }
+
+      return created
     },
-    [persist, state],
+    [currentDmnWorkspaceId, refreshDmns],
   )
 
-  const renameDmn = useCallback(
-    (workspaceId: string, dmnId: string, title: string) => {
-      const index = state.dmns.findIndex(
-        (dmn) => dmn.workspaceId === workspaceId && dmn.id === dmnId,
-      )
+  const deleteDmn = useCallback(
+    async (workspaceId: string, dmnId: string) => {
+      await dmnApi.deleteDmn(workspaceId, dmnId)
 
-      if (index < 0) {
-        return undefined
+      // Refresh DMN list for this workspace
+      if (currentDmnWorkspaceId === workspaceId) {
+        await refreshDmns(workspaceId)
       }
-
-      const now = new Date().toISOString()
-      const nextDmns = [...state.dmns]
-      const current = nextDmns[index]
-
-      nextDmns[index] = {
-        ...current,
-        title: title.trim(),
-        updatedAt: now,
-      }
-
-      const nextState: WorkspaceStoreState = {
-        workspaces: state.workspaces.map((workspace) =>
-          workspace.id === workspaceId ? { ...workspace, updatedAt: now } : workspace,
-        ),
-        dmns: nextDmns,
-      }
-
-      persist(nextState)
-      return nextState.dmns[index]
     },
-    [persist, state.dmns, state.workspaces],
+    [currentDmnWorkspaceId, refreshDmns],
+  )
+
+  const updateDmn = useCallback(
+    async (workspaceId: string, dmnId: string, title: string, xml: string, description?: string) => {
+      const updated = await dmnApi.updateDmn(workspaceId, dmnId, {
+        title: title.trim(),
+        xml,
+        description: description?.trim(),
+      })
+
+      // Update DMN in local state if it's the current workspace
+      if (currentDmnWorkspaceId === workspaceId) {
+        setDmns((prevDmns) =>
+          prevDmns.map((dmn) => (dmn.id === dmnId ? updated : dmn)),
+        )
+      }
+
+      return updated
+    },
+    [currentDmnWorkspaceId],
   )
 
   const value = useMemo<WorkspaceStoreValue>(
@@ -290,28 +313,53 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       workspacesHasPrevious: workspacePagination.hasPrevious,
       isWorkspacesLoading,
       workspacesError,
+      dmns,
+      dmnsPage: dmnPagination.page,
+      dmnsPageSize: dmnPagination.size,
+      dmnsTotalPages: dmnPagination.totalPages,
+      dmnsTotalItems: dmnPagination.totalItems,
+      dmnsHasNext: dmnPagination.hasNext,
+      dmnsHasPrevious: dmnPagination.hasPrevious,
+      isDmnsLoading,
+      dmnsError,
       refreshWorkspaces,
       setWorkspacesPageSize,
       updateWorkspaceName,
       deleteWorkspace,
+      refreshDmns,
+      setDmnsPageSize,
       listDmns,
       getWorkspace,
       getDmn,
       createWorkspace,
       createDmn,
-      renameDmn,
+      deleteDmn,
+      updateDmn,
     }),
     [
       createDmn,
       createWorkspace,
       deleteWorkspace,
+      deleteDmn,
+      updateDmn,
+      dmnPagination.hasNext,
+      dmnPagination.hasPrevious,
+      dmnPagination.page,
+      dmnPagination.size,
+      dmnPagination.totalItems,
+      dmnPagination.totalPages,
+      dmns,
+      dmnsError,
       getDmn,
       getWorkspace,
+      isDmnsLoading,
       isWorkspacesLoading,
       listDmns,
+      refreshDmns,
       refreshWorkspaces,
-      renameDmn,
+      setDmnsPageSize,
       setWorkspacesPageSize,
+      state.workspaces,
       updateWorkspaceName,
       workspacePagination.hasNext,
       workspacePagination.hasPrevious,
@@ -319,7 +367,6 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       workspacePagination.size,
       workspacePagination.totalItems,
       workspacePagination.totalPages,
-      state.workspaces,
       workspacesError,
     ],
   )

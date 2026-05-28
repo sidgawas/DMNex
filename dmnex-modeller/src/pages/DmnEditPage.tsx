@@ -1,18 +1,28 @@
-import { useState } from 'react'
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
-import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined'
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
-import { Alert, Box, Button, Chip, Paper, Stack, TextField, Typography } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Container,
+  Stack,
+  Typography
+} from '@mui/material'
+import { useMemo, useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
+import DmnEditorStandaloneComponent from '../components/DmnEditorStandalone'
 import { useWorkspaceStore } from '../features/workspace/useWorkspaceStore'
 
 function DmnEditPage() {
   const { workspaceId, dmnId } = useParams<{ workspaceId: string; dmnId: string }>()
-  const { getWorkspace, getDmn, renameDmn } = useWorkspaceStore()
+  const { getWorkspace, getDmn, updateDmn } = useWorkspaceStore()
 
   const workspace = workspaceId ? getWorkspace(workspaceId) : undefined
   const dmn = workspaceId && dmnId ? getDmn(workspaceId, dmnId) : undefined
-  const [name, setName] = useState(dmn?.title ?? '')
+
+  const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const dmnDescription = useMemo(() => dmn?.description ?? '', [dmn?.description])
 
   if (!workspaceId || !dmnId) {
     return <Alert severity="error">Workspace or DMN context is missing from route.</Alert>
@@ -46,21 +56,25 @@ function DmnEditPage() {
     )
   }
 
-  const handleRename = () => {
-    const trimmedName = name.trim()
+  const handleSaveXml = async (xml: string) => {
+    setError(null)
+    setIsSaving(true)
 
-    if (!trimmedName) {
-      return
+    try {
+      await updateDmn(workspaceId, dmnId, dmn.title, xml, dmnDescription)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update DMN. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
-
-    renameDmn(workspaceId, dmnId, trimmedName)
   }
 
   return (
-    <Stack spacing={2.5}>
+    <Stack spacing={2.5} sx={{ height: '100%', minHeight: 0 }}>
       <Box
         sx={{
           display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1,
@@ -74,50 +88,47 @@ function DmnEditPage() {
           to={`/workspaces/${workspaceId}/dmns`}
           variant="outlined"
           startIcon={<ArrowBackOutlinedIcon />}
+          sx={{ width: { xs: '100%', sm: 'auto' } }}
         >
           Back to list
         </Button>
       </Box>
 
-      <Paper
-        variant="outlined"
-        sx={{
-          p: { xs: 2.5, md: 3 },
-          borderRadius: 2,
-          display: 'grid',
-          gap: 2,
-          maxWidth: 700,
-        }}
-      >
-        <Typography variant="h6" sx={{ fontWeight: 650 }}>
-          Workspace-scoped editor placeholder
-        </Typography>
+      {error && <Alert severity="error">{error}</Alert>}
 
-        <TextField
-          label="DMN Name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          fullWidth
-        />
+      {isSaving && <Alert severity="info">Saving DMN XML...</Alert>}
 
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button variant="contained" startIcon={<SaveOutlinedIcon />} onClick={handleRename}>
-            Save Name
-          </Button>
-        </Box>
-
-        <Typography color="text.secondary">
-          Current DMN metadata:
-        </Typography>
-        <Chip
-          icon={<EditNoteOutlinedIcon />}
-          color="primary"
-          variant="outlined"
-          label={`Editing DMN id: ${dmn.id}`}
-          sx={{ width: 'fit-content' }}
-        />
-        <Typography color="text.secondary">File path: {dmn.filePath}</Typography>
-      </Paper>
+      <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+        <Container sx={{ flex: 1, minHeight: 0, display: 'flex', minWidth: '100%' }}>
+          <DmnEditorStandaloneComponent
+            initialXml={dmn.xml}
+            filePath={`${dmn.title || 'model'}.dmn`}
+            onSave={handleSaveXml}
+          />
+        </Container>
+{/* 
+        <Box sx={{ display: 'grid', gap: 1 }}>
+          <Typography color="text.secondary">DMN Metadata:</Typography>
+          <Chip
+            icon={<EditNoteOutlinedIcon />}
+            color="primary"
+            variant="outlined"
+            label={`DMN ID: ${dmn.id}`}
+            sx={{ width: 'fit-content' }}
+          />
+          <Typography color="text.secondary" variant="body2">
+            Created: {new Date(dmn.createdAt).toLocaleString()}
+          </Typography>
+          <Typography color="text.secondary" variant="body2">
+            Updated: {new Date(dmn.updatedAt).toLocaleString()}
+          </Typography>
+          {dmn.lastPublishedAt && (
+            <Typography color="text.secondary" variant="body2">
+              Last Published: {new Date(dmn.lastPublishedAt).toLocaleString()}
+            </Typography>
+          )}
+        </Box> */}
+      </Stack>
     </Stack>
   )
 }
