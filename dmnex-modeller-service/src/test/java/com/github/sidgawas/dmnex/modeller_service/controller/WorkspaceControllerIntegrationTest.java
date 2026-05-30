@@ -25,6 +25,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 
+import com.github.sidgawas.dmnex.modeller_service.repository.DmnRepository;
 import com.github.sidgawas.dmnex.modeller_service.entity.WorkspaceEntity;
 import com.github.sidgawas.dmnex.modeller_service.repository.WorkspaceRepository;
 
@@ -49,6 +50,9 @@ class WorkspaceControllerIntegrationTest {
 
     @MockitoBean
     private WorkspaceRepository workspaceRepository;
+
+    @MockitoBean
+    private DmnRepository dmnRepository;
 
     @Test
     void createWorkspaceShouldReturnCreatedResponse() throws Exception {
@@ -174,7 +178,9 @@ class WorkspaceControllerIntegrationTest {
     void deleteWorkspaceShouldReturnNoContent() throws Exception {
         WorkspaceEntity existing = WorkspaceEntity.builder().id("workspace-id").name("Delete").slug("delete").build();
         when(workspaceRepository.findByIdAndIsDeletedFalse("workspace-id")).thenReturn(Optional.of(existing));
+        when(dmnRepository.findByWorkspaceIdAndIsDeletedFalse("workspace-id")).thenReturn(List.of());
         when(workspaceRepository.save(any(WorkspaceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(dmnRepository.saveAll(any(List.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(delete("/api/v1/workspaces/workspace-id"))
                 .andExpect(status().isNoContent());
