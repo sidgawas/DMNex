@@ -1,4 +1,4 @@
-import type { DmnResponseLite } from '../../api/dmnApi'
+import type { DmnResponse, DmnResponseLite } from '../../api/dmnApi'
 import { createContext } from 'react'
 
 export type Workspace = {
@@ -30,6 +30,8 @@ export type WorkspaceStoreValue = {
   dmnsHasPrevious: boolean
   isDmnsLoading: boolean
   dmnsError: string | null
+  currentActiveWorkspaceId: string | null
+  setCurrentActiveWorkspaceId: (workspaceId: string | null) => void
   refreshWorkspaces: (
     targetPage?: number,
     targetSize?: number,
@@ -51,7 +53,7 @@ export type WorkspaceStoreValue = {
   setDmnsPageSize: (pageSize: number) => Promise<void>
   listDmns: (workspaceId: string) => DmnDefinition[]
   getWorkspace: (workspaceId: string) => Workspace | undefined
-  getDmn: (workspaceId: string, dmnId: string) => DmnDefinition | undefined
+  getDmn: (workspaceId: string, dmnId: string) => Promise<DmnResponse | undefined>
   createWorkspace: (name: string) => Promise<Workspace>
   createDmn: (workspaceId: string, title: string, xml: string, description?: string) => Promise<DmnDefinition>
   updateDmn: (workspaceId: string, dmnId: string, title: string, xml: string, description?: string) => Promise<DmnDefinition>

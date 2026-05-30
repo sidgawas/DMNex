@@ -85,7 +85,7 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
   })
   const [isDmnsLoading, setIsDmnsLoading] = useState(false)
   const [dmnsError, setDmnsError] = useState<string | null>(null)
-  const [currentDmnWorkspaceId, setCurrentDmnWorkspaceId] = useState<string | null>(null)
+  const [currentActiveWorkspaceId, setCurrentActiveWorkspaceId] = useState<string | null>(null)
 
   const getWorkspace = useCallback(
     (workspaceId: string) => state.workspaces.find((workspace) => workspace.id === workspaceId),
@@ -94,18 +94,18 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
 
   const listDmns = useCallback(
     (workspaceId: string) =>
-      currentDmnWorkspaceId === workspaceId
+      currentActiveWorkspaceId === workspaceId
         ? dmns
         : [],
-    [dmns, currentDmnWorkspaceId],
+    [dmns, currentActiveWorkspaceId],
   )
 
   const getDmn = useCallback(
-    (workspaceId: string, dmnId: string) =>
-      currentDmnWorkspaceId === workspaceId
-        ? dmns.find((dmn) => dmn.id === dmnId)
+    async (workspaceId: string, dmnId: string) =>
+      currentActiveWorkspaceId === workspaceId
+        ? await dmnApi.getDmnById(workspaceId, dmnId)
         : undefined,
-    [dmns, currentDmnWorkspaceId],
+    [dmns, currentActiveWorkspaceId],
   )
 
   const refreshWorkspaces = useCallback(async (
@@ -170,7 +170,7 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
     ) => {
       setIsDmnsLoading(true)
       setDmnsError(null)
-      setCurrentDmnWorkspaceId(workspaceId)
+      setCurrentActiveWorkspaceId(workspaceId)
 
       try {
         const requestedPage = targetPage ?? dmnPagination.page
@@ -208,10 +208,10 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
 
   const setDmnsPageSize = useCallback(
     async (pageSize: number) => {
-      if (!currentDmnWorkspaceId) return
-      await refreshDmns(currentDmnWorkspaceId, 0, pageSize)
+      if (!currentActiveWorkspaceId) return
+      await refreshDmns(currentActiveWorkspaceId, 0, pageSize)
     },
-    [currentDmnWorkspaceId, refreshDmns],
+    [currentActiveWorkspaceId, refreshDmns],
   )
 
   useEffect(() => {
@@ -261,13 +261,13 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       })
 
       // Refresh DMN list for this workspace
-      if (currentDmnWorkspaceId === workspaceId) {
+      if (currentActiveWorkspaceId === workspaceId) {
         await refreshDmns(workspaceId, 0)
       }
 
       return created
     },
-    [currentDmnWorkspaceId, refreshDmns],
+    [currentActiveWorkspaceId, refreshDmns],
   )
 
   const deleteDmn = useCallback(
@@ -275,11 +275,11 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       await dmnApi.deleteDmn(workspaceId, dmnId)
 
       // Refresh DMN list for this workspace
-      if (currentDmnWorkspaceId === workspaceId) {
+      if (currentActiveWorkspaceId === workspaceId) {
         await refreshDmns(workspaceId)
       }
     },
-    [currentDmnWorkspaceId, refreshDmns],
+    [currentActiveWorkspaceId, refreshDmns],
   )
 
   const updateDmn = useCallback(
@@ -291,7 +291,7 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       })
 
       // Update DMN in local state if it's the current workspace
-      if (currentDmnWorkspaceId === workspaceId) {
+      if (currentActiveWorkspaceId === workspaceId) {
         setDmns((prevDmns) =>
           prevDmns.map((dmn) => (dmn.id === dmnId ? updated : dmn)),
         )
@@ -299,7 +299,7 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
 
       return updated
     },
-    [currentDmnWorkspaceId],
+    [currentActiveWorkspaceId],
   )
 
   const value = useMemo<WorkspaceStoreValue>(
@@ -322,6 +322,8 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       dmnsHasPrevious: dmnPagination.hasPrevious,
       isDmnsLoading,
       dmnsError,
+      currentActiveWorkspaceId,
+      setCurrentActiveWorkspaceId,
       refreshWorkspaces,
       setWorkspacesPageSize,
       updateWorkspaceName,
@@ -368,6 +370,8 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       workspacePagination.totalItems,
       workspacePagination.totalPages,
       workspacesError,
+      currentActiveWorkspaceId,
+      setCurrentActiveWorkspaceId,
     ],
   )
 

@@ -7,24 +7,59 @@ import {
   Stack,
   Typography
 } from '@mui/material'
-import { useMemo, useState } from 'react'
-import { Link as RouterLink, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link as RouterLink, useLoaderData, useParams } from 'react-router-dom'
 import DmnEditorStandaloneComponent from '../components/DmnEditorStandalone'
 import { useWorkspaceStore } from '../features/workspace/useWorkspaceStore'
+import type { DmnResponseLite } from '../api/dmn.types'
+
+
+export const dmnLoader = async ({ params }: { params: { workspaceId: string; dmnId: string } }) => {
+  const { workspaceId, dmnId } = params
+  const { getDmn } = useWorkspaceStore()
+  if (!workspaceId || !dmnId) {
+    throw new Error('Workspace ID or DMN ID is missing from route parameters.')
+  }
+  const dmn = await getDmn(workspaceId, dmnId)
+  if (!dmn) {
+    throw new Error('DMN not found in the specified workspace.')
+  }
+  return {dmn}
+}
 
 function DmnEditPage() {
-  const { workspaceId, dmnId } = useParams<{ workspaceId: string; dmnId: string }>()
-  const { getWorkspace, getDmn, updateDmn } = useWorkspaceStore()
+  const { dmnId } = useParams<{ dmnId: string }>()
+  const { getWorkspace, getDmn, updateDmn, currentActiveWorkspaceId } = useWorkspaceStore()
 
-  const workspace = workspaceId ? getWorkspace(workspaceId) : undefined
-  const dmn = workspaceId && dmnId ? getDmn(workspaceId, dmnId) : undefined
-
+  const workspace = currentActiveWorkspaceId ? getWorkspace(currentActiveWorkspaceId) : undefined
+  const [dmn, setDmn] = useState<DmnResponseLite | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
+
+  useEffect(() => {
+    if (!currentActiveWorkspaceId || !dmnId) {
+      return
+    }
+
+    const fetchDmn = async () => {
+      try {
+        const fetchedDmn = await getDmn(currentActiveWorkspaceId, dmnId)
+        if (fetchedDmn) {
+          setDmn(fetchedDmn)
+        } else {
+          setError('DMN not found in this workspace. Isolation is preventing cross-workspace access.')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load DMN. Please try again.')
+      }
+    }
+    fetchDmn()
+
+  }, [currentActiveWorkspaceId, dmnId, getWorkspace])
   const dmnDescription = useMemo(() => dmn?.description ?? '', [dmn?.description])
 
-  if (!workspaceId || !dmnId) {
+  if (!currentActiveWorkspaceId || !dmnId) {
     return <Alert severity="error">Workspace or DMN context is missing from route.</Alert>
   }
 
@@ -48,7 +83,7 @@ function DmnEditPage() {
           DMN not found in this workspace. Isolation is preventing cross-workspace access.
         </Alert>
         <Box>
-          <Button component={RouterLink} to={`/workspaces/${workspaceId}/dmns`} variant="contained">
+          <Button component={RouterLink} to={`/workspaces/${currentActiveWorkspaceId}/dmns`} variant="contained">
             Back to Workspace DMNs
           </Button>
         </Box>
@@ -61,7 +96,7 @@ function DmnEditPage() {
     setIsSaving(true)
 
     try {
-      await updateDmn(workspaceId, dmnId, dmn.title, xml, dmnDescription)
+      await updateDmn(currentActiveWorkspaceId, dmnId, dmn.title, xml, dmnDescription)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update DMN. Please try again.')
     } finally {
@@ -85,7 +120,7 @@ function DmnEditPage() {
         </Typography>
         <Button
           component={RouterLink}
-          to={`/workspaces/${workspaceId}/dmns`}
+          to={`/workspaces/${currentActiveWorkspaceId}/dmns`}
           variant="outlined"
           startIcon={<ArrowBackOutlinedIcon />}
           sx={{ width: { xs: '100%', sm: 'auto' } }}
