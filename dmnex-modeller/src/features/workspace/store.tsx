@@ -105,7 +105,7 @@ export function WorkspaceStoreProvider({ children }: WorkspaceStoreProviderProps
       currentActiveWorkspaceId === workspaceId
         ? await dmnApi.getDmnById(workspaceId, dmnId)
         : undefined,
-    [dmns, currentActiveWorkspaceId],
+    [currentActiveWorkspaceId],
   )
 
   const refreshWorkspaces = useCallback(async (

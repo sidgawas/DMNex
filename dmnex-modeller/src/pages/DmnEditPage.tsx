@@ -8,24 +8,10 @@ import {
   Typography
 } from '@mui/material'
 import { useEffect, useMemo, useState } from 'react'
-import { Link as RouterLink, useLoaderData, useParams } from 'react-router-dom'
+import { Link as RouterLink, useParams } from 'react-router-dom'
+import type { DmnResponseLite } from '../api/dmn.types'
 import DmnEditorStandaloneComponent from '../components/DmnEditorStandalone'
 import { useWorkspaceStore } from '../features/workspace/useWorkspaceStore'
-import type { DmnResponseLite } from '../api/dmn.types'
-
-
-export const dmnLoader = async ({ params }: { params: { workspaceId: string; dmnId: string } }) => {
-  const { workspaceId, dmnId } = params
-  const { getDmn } = useWorkspaceStore()
-  if (!workspaceId || !dmnId) {
-    throw new Error('Workspace ID or DMN ID is missing from route parameters.')
-  }
-  const dmn = await getDmn(workspaceId, dmnId)
-  if (!dmn) {
-    throw new Error('DMN not found in the specified workspace.')
-  }
-  return {dmn}
-}
 
 function DmnEditPage() {
   const { dmnId } = useParams<{ dmnId: string }>()
@@ -56,7 +42,7 @@ function DmnEditPage() {
     }
     fetchDmn()
 
-  }, [currentActiveWorkspaceId, dmnId, getWorkspace])
+  }, [currentActiveWorkspaceId, dmnId, getWorkspace, getDmn])
   const dmnDescription = useMemo(() => dmn?.description ?? '', [dmn?.description])
 
   if (!currentActiveWorkspaceId || !dmnId) {
